@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Global Midnight Countdown</title>
+  <title>New Year Countdown (UTC +14 to -10)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <style>
@@ -22,90 +22,157 @@
       justify-content: center;
       align-items: center;
       text-align: center;
+      padding: 24px;
     }
 
     h1 {
       font-size: 42px;
-      margin-bottom: 10px;
+      margin: 0 0 12px;
       letter-spacing: 2px;
+    }
+
+    .label {
+      font-size: 18px;
+      opacity: 0.75;
+      margin-bottom: 18px;
+      line-height: 1.4;
     }
 
     .offset {
       font-size: 22px;
-      opacity: 0.8;
-      margin-bottom: 20px;
+      opacity: 0.9;
+      margin-bottom: 18px;
     }
 
     .countdown {
       font-size: 88px;
-      font-weight: bold;
+      font-weight: 800;
       letter-spacing: 4px;
+      font-variant-numeric: tabular-nums;
     }
 
-    .note {
-      margin-top: 30px;
+    .small {
+      margin-top: 18px;
       font-size: 14px;
       opacity: 0.6;
+      max-width: 900px;
+    }
+
+    .year {
+      font-weight: 700;
+      opacity: 0.95;
     }
   </style>
 </head>
 
 <body>
   <div class="container">
-    <h1>Next Midnight on Earth</h1>
-    <div class="offset" id="offset">UTC ±00</div>
+    <h1>New Year’s Countdown</h1>
+    <div class="label">
+      Always showing the <span class="year" id="targetYear">next</span> New Year that happens <b>somewhere</b><br/>
+      (UTC offsets +14 through −10)
+    </div>
+
+    <div class="offset" id="offset">UTC …</div>
     <div class="countdown" id="timer">--:--:--</div>
-    <div class="note">UTC offsets from +14 to −10</div>
+
+    <div class="small" id="debugLine"></div>
   </div>
 
   <script>
-    // Generate UTC offsets from +14 to -10
-    const offsets = [];
-    for (let i = 14; i >= -10; i--) {
-      offsets.push(i);
+    // Offsets from +14 down to -10
+    const OFFSETS = [];
+    for (let o = 14; o >= -10; o--) OFFSETS.push(o);
+
+    function labelOffset(offset) {
+      if (offset > 0) return `UTC +${offset}`;
+      if (offset < 0) return `UTC ${offset}`; // already includes minus sign
+      return `UTC ±0`;
     }
 
-    function getTimeUntilMidnight(offset) {
-      const now = new Date();
-
-      // Convert current UTC time to target offset
-      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-      const local = new Date(utc + offset * 3600000);
-
-      // Get next midnight in that offset
-      const midnight = new Date(local);
-      midnight.setHours(24, 0, 0, 0);
-
-      return midnight.getTime() - local.getTime();
+    // Get the "local" date/time components in a given UTC offset,
+    // by shifting UTC time by offset hours.
+    function getLocalDatePartsInOffset(nowUtcMs, offsetHours) {
+      const localMs = nowUtcMs + offsetHours * 3600000;
+      const d = new Date(localMs);
+      return {
+        year: d.getUTCFullYear(),
+        month: d.getUTCMonth(),     // 0-11
+        day: d.getUTCDate(),        // 1-31
+        hour: d.getUTCHours(),
+        min: d.getUTCMinutes(),
+        sec: d.getUTCSeconds()
+      };
     }
 
-    function formatTime(ms) {
-      const total = Math.max(0, Math.floor(ms / 1000));
+    // Compute milliseconds (UTC) for Jan 1 00:00 in the *next applicable year* for an offset.
+    function getNextNewYearUtcMsForOffset(nowUtcMs, offsetHours) {
+      const parts = getLocalDatePartsInOffset(nowUtcMs, offsetHours);
+
+      // In that offset, "New Year" target is Jan 1 00:00.
+      // If current local date/time is already Jan 1 00:00 or later of the current year,
+      // then target is next year; otherwise target is upcoming Jan 1 of next year anyway
+      // BUT careful: if we're in the middle of the year, upcoming New Year is Jan 1 of (year+1).
+      //
+      // So the target local year is always (current local year + 1),
+      // because New Year is next Jan 1.
+      const targetLocalYear = parts.year + 1;
+
+      // targetLocal = Jan 1, 00:00:00 in that offset
+      // Convert to UTC by subtracting offset.
+      const targetUtcMs = Date.UTC(targetLocalYear, 0, 1, 0, 0, 0) - offsetHours * 3600000;
+
+      return { targetUtcMs, targetLocalYear };
+    }
+
+    function formatHMS(ms) {
+      ms = Math.max(0, ms);
+      const total = Math.floor(ms / 1000);
       const h = String(Math.floor(total / 3600)).padStart(2, "0");
       const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
       const s = String(total % 60).padStart(2, "0");
       return `${h}:${m}:${s}`;
     }
 
+    function formatDHMS(ms) {
+      ms = Math.max(0, ms);
+      const total = Math.floor(ms / 1000);
+      const days = Math.floor(total / 86400);
+      const rem = total % 86400;
+      const h = String(Math.floor(rem / 3600)).padStart(2, "0");
+      const m = String(Math.floor((rem % 3600) / 60)).padStart(2, "0");
+      const s = String(rem % 60).padStart(2, "0");
+      return `${days}d ${h}:${m}:${s}`;
+    }
+
     function tick() {
-      let soonest = null;
-      let soonestOffset = 0;
+      const now = Date.now();
+      let best = null;
 
-      offsets.forEach(offset => {
-        const diff = getTimeUntilMidnight(offset);
-        if (soonest === null || diff < soonest) {
-          soonest = diff;
-          soonestOffset = offset;
+      for (const offset of OFFSETS) {
+        const { targetUtcMs, targetLocalYear } = getNextNewYearUtcMsForOffset(now, offset);
+        const diff = targetUtcMs - now;
+
+        if (best === null || diff < best.diff) {
+          best = { offset, diff, targetUtcMs, targetLocalYear };
         }
-      });
+      }
 
-      const label =
-        soonestOffset > 0 ? `UTC +${soonestOffset}` :
-        soonestOffset < 0 ? `UTC ${soonestOffset}` :
-        `UTC ±0`;
+      document.getElementById("offset").textContent =
+        `${labelOffset(best.offset)} hits New Year ${best.targetLocalYear} next`;
 
-      document.getElementById("offset").textContent = label;
-      document.getElementById("timer").textContent = formatTime(soonest);
+      // Big display: days + time
+      document.getElementById("timer").textContent = formatDHMS(best.diff);
+
+      // Helpful line so you can sanity-check it
+      const localNowParts = getLocalDatePartsInOffset(now, best.offset);
+      const targetUtcIso = new Date(best.targetUtcMs).toISOString();
+      document.getElementById("targetYear").textContent = best.targetLocalYear;
+      document.getElementById("debugLine").textContent =
+        `Local time in ${labelOffset(best.offset)} right now: `
+        + `${localNowParts.year}-${String(localNowParts.month+1).padStart(2,"0")}-${String(localNowParts.day).padStart(2,"0")} `
+        + `${String(localNowParts.hour).padStart(2,"0")}:${String(localNowParts.min).padStart(2,"0")}:${String(localNowParts.sec).padStart(2,"0")} `
+        + `• Target (UTC): ${targetUtcIso}`;
     }
 
     tick();
