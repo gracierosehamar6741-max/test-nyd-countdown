@@ -1,82 +1,115 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>New Year – All Timezones Countdown</title>
-
-  <!-- Luxon for reliable timezone math -->
-  <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+  <meta charset="utf-8">
+  <title>Global Midnight Countdown</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <style>
-    :root {
-      --bg: #050608;
-      --panel: rgba(255,255,255,.06);
-      --text: rgba(255,255,255,.92);
-      --muted: rgba(255,255,255,.65);
-      --accent: rgba(120, 190, 255, .9);
-      --danger: rgba(255, 120, 120, .9);
-    }
-    * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: radial-gradient(1200px 700px at 50% 0%, rgba(120,190,255,.14), transparent 60%),
-                  radial-gradient(900px 600px at 90% 30%, rgba(255,120,120,.10), transparent 55%),
-                  var(--bg);
-      color: var(--text);
-      overflow: hidden;
+      padding: 0;
+      height: 100%;
+      background: black;
+      color: white;
+      font-family: Arial, Helvetica, sans-serif;
     }
 
-    /* Main layout */
-    .wrap { position: relative; width: 100vw; height: 100vh; display: grid; place-items: center; padding: 24px; }
-    .grid {
-      width: min(1100px, 100%);
-      display: grid;
-      grid-template-columns: 1.35fr .65fr;
-      gap: 18px;
-      align-items: stretch;
-    }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 18px;
-      box-shadow: 0 18px 60px rgba(0,0,0,.45);
-      backdrop-filter: blur(10px);
-      overflow: hidden;
+    .container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
     }
 
-    .hero { padding: 22px 22px 18px; }
-    .titleRow { display:flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
-    h1 { margin: 0; font-size: 18px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-    .status { font-size: 13px; color: var(--muted); }
-    .status b { color: var(--text); }
-
-    .bigTime {
-      margin-top: 14px;
-      font-variant-numeric: tabular-nums;
-      font-size: clamp(46px, 6.2vw, 78px);
-      letter-spacing: .04em;
-      line-height: 1.05;
-      text-shadow: 0 0 22px rgba(120,190,255,.18);
+    h1 {
+      font-size: 42px;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
     }
-    .sub {
-      margin-top: 10px;
-      color: var(--muted);
+
+    .offset {
+      font-size: 22px;
+      opacity: 0.8;
+      margin-bottom: 20px;
+    }
+
+    .countdown {
+      font-size: 88px;
+      font-weight: bold;
+      letter-spacing: 4px;
+    }
+
+    .note {
+      margin-top: 30px;
       font-size: 14px;
-      display:flex; gap: 10px; flex-wrap: wrap; align-items: center;
+      opacity: 0.6;
     }
-    .pill {
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(0,0,0,.18);
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .pill strong { color: var(--text); font-weight: 600; }
+  </style>
+</head>
 
-    .side { padding: 16px; display:flex; flex-direction: column; gap: 12px; }
-    .
+<body>
+  <div class="container">
+    <h1>Next Midnight on Earth</h1>
+    <div class="offset" id="offset">UTC ±00</div>
+    <div class="countdown" id="timer">--:--:--</div>
+    <div class="note">UTC offsets from +14 to −10</div>
+  </div>
+
+  <script>
+    // Generate UTC offsets from +14 to -10
+    const offsets = [];
+    for (let i = 14; i >= -10; i--) {
+      offsets.push(i);
+    }
+
+    function getTimeUntilMidnight(offset) {
+      const now = new Date();
+
+      // Convert current UTC time to target offset
+      const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+      const local = new Date(utc + offset * 3600000);
+
+      // Get next midnight in that offset
+      const midnight = new Date(local);
+      midnight.setHours(24, 0, 0, 0);
+
+      return midnight.getTime() - local.getTime();
+    }
+
+    function formatTime(ms) {
+      const total = Math.max(0, Math.floor(ms / 1000));
+      const h = String(Math.floor(total / 3600)).padStart(2, "0");
+      const m = String(Math.floor((total % 3600) / 60)).padStart(2, "0");
+      const s = String(total % 60).padStart(2, "0");
+      return `${h}:${m}:${s}`;
+    }
+
+    function tick() {
+      let soonest = null;
+      let soonestOffset = 0;
+
+      offsets.forEach(offset => {
+        const diff = getTimeUntilMidnight(offset);
+        if (soonest === null || diff < soonest) {
+          soonest = diff;
+          soonestOffset = offset;
+        }
+      });
+
+      const label =
+        soonestOffset > 0 ? `UTC +${soonestOffset}` :
+        soonestOffset < 0 ? `UTC ${soonestOffset}` :
+        `UTC ±0`;
+
+      document.getElementById("offset").textContent = label;
+      document.getElementById("timer").textContent = formatTime(soonest);
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
